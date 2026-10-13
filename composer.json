@@ -1,0 +1,11 @@
+{
+    "name": "elephentity/codegen-csharp",
+    "description": "The C# builder for Elephentity: compiles the IR into C#. Build-time only.",
+    "type": "library",
+    "license": "MIT",
+    "bin": [
+        "bin/eleph-gen-csharp"
+    ],
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
