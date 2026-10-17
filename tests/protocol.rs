@@ -203,6 +203,26 @@ fn a_missing_config_block_reports_both_namespaces() {
 }
 
 #[test]
+fn a_namespace_with_a_leading_or_trailing_dot_is_reported_as_written() {
+    for namespace in [".Hsimah.Entity", "Hsimah.Entity.", "Hsimah..Entity", "."] {
+        let response = answer(&with_config(
+            fixture("valid"),
+            json!({"namespace": namespace, "typeNamespace": "Hsimah.Type"}),
+        ));
+        let errors = response["errors"].as_array().unwrap();
+
+        assert_eq!(errors.len(), 1, "{namespace}: {errors:?}");
+        assert!(
+            errors[0].as_str().unwrap().contains(&format!(
+                "\"namespace\" (\"{namespace}\") is not a valid C# namespace"
+            )),
+            "{namespace}: {errors:?}"
+        );
+        assert_eq!(response["files"], json!([]));
+    }
+}
+
+#[test]
 fn a_reserved_word_is_not_a_namespace() {
     let response = answer(&with_config(
         fixture("valid"),

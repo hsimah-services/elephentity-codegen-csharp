@@ -172,7 +172,7 @@ fn config_problems(target: &str, config: &Value) -> Vec<String> {
 
     for key in ["namespace", "typeNamespace"] {
         match config.get(key) {
-            Some(Value::String(namespace)) if is_namespace(namespace.trim_matches('.')) => {}
+            Some(Value::String(namespace)) if is_namespace(namespace) => {}
             Some(Value::String(namespace)) if !namespace.is_empty() => problems.push(format!(
                 "The {target} target's \"{key}\" (\"{namespace}\") is not a valid C# namespace: use dot-separated identifiers that are not reserved words."
             )),
@@ -322,6 +322,8 @@ mod tests {
         assert!(is_namespace("_Internal.V2"));
         assert!(!is_namespace(""));
         assert!(!is_namespace("a..b"));
+        assert!(!is_namespace(".a"));
+        assert!(!is_namespace("a."));
         assert!(!is_namespace("1abc"));
         assert!(!is_namespace("My-App"));
         assert!(!is_namespace("App.class"));
