@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Rust
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+
+      - name: Formatting
+        run: cargo +stable fmt --check
+
+      - name: Static analysis
+        run: cargo +stable clippy --locked --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo +stable test --locked
+
+      - name: The launcher parses
+        run: sh -n bin/eleph-gen-csharp
