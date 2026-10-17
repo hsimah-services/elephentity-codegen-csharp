@@ -34,3 +34,32 @@ jobs:
 
       - name: The launcher parses
         run: sh -n bin/eleph-gen-csharp
+
+  generated:
+    name: Generated C# compiles and runs
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        run: rustup toolchain install stable --profile minimal
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: tests/dotnet/global.json
+
+      - name: The runtime the golden trees are built against
+        run: |
+          sha="$(cat tests/dotnet/elephentity-dotnet.sha)"
+          git clone https://github.com/hsimah-services/elephentity-dotnet.git tests/dotnet/.deps/elephentity-dotnet
+          git -C tests/dotnet/.deps/elephentity-dotnet checkout "$sha"
+
+      - name: Build the builder
+        run: cargo +stable build --locked
+
+      - name: Write the golden trees out
+        run: python3 tests/dotnet/materialize.py
+
+      - name: Compile them and run the memory-driver tests
+        run: dotnet run --project tests/dotnet -c Release

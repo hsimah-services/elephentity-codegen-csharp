@@ -13,7 +13,17 @@
 //! - the version gate refuses in both directions;
 //! - `describe` works with no schema, and before the specs are compiled.
 
+mod cs;
+mod emit_bridges;
+mod emit_catalogue;
+mod emit_contracts;
+mod emit_entity;
+mod emit_shared;
+mod emit_write;
+mod gen;
 mod ir;
+mod names;
+mod runtime;
 
 use serde_json::{json, Map, Value};
 use std::io::{self, Read};
@@ -274,10 +284,9 @@ fn run(request: &Value) -> Result<Value> {
         return Err("The schema is not readable: missing project.".into());
     }
 
-    // The IR must parse as this builder understands it, even though nothing is emitted from it yet:
-    // a scaffold that accepted anything would fail later, in the emitters, for a reason that is
-    // really "the compiler is ahead of this builder".
-    ir::decode(schema)?;
+    // The IR must parse as this builder understands it: a builder that accepted anything would fail later, in the
+    // emitters, for a reason that is really "the compiler is ahead of this builder".
+    let normalized = ir::decode(schema)?;
 
     let problems = config_problems(target, &request["config"]);
 
@@ -285,7 +294,89 @@ fn run(request: &Value) -> Result<Value> {
         return Ok(response(vec![], problems));
     }
 
-    Ok(response(vec![], vec![]))
+    let generator = gen::Gen::new(
+        &normalized,
+        text(&request["config"]["namespace"]).to_string(),
+        text(&request["config"]["typeNamespace"]).to_string(),
+    );
+
+    match generate(&generator) {
+        Ok(files) => Ok(response(files, vec![])),
+        Err(error) => Ok(response(vec![], vec![error])),
+    }
+}
+
+/// Every file for the schema, signed by nobody yet and sorted by path, or the problems that stopped it.
+fn generate(g: &gen::Gen<'_>) -> std::result::Result<Vec<Value>, String> {
+    use gen::{b, vals};
+
+    let mut files = g.shared()?;
+
+    for e in g.entities() {
+        files.push(g.read_model(e)?);
+        files.push(g.hydrator(e)?);
+        files.push(g.input(e)?);
+        files.push(g.deleter(e));
+        files.push(g.policies(e, false));
+        files.push(g.policies(e, true));
+        files.push(g.verifiers(e)?);
+        files.push(g.side_effects(e));
+        files.push(g.mutator(e)?);
+        files.extend(g.contracts(e)?);
+        files.extend(g.contexts(e)?);
+
+        if !vals(&e["queries"]).is_empty() {
+            files.push(g.finder(e)?);
+        }
+    }
+
+    let _ = b;
+    let contract_namespaces = [g.contract_ns(), g.processor_ns(), g.pattern_contract_ns()];
+    let contracts: Vec<String> = files
+        .iter()
+        .filter(|f| {
+            contract_namespaces.contains(&f.namespace)
+                && f.path
+                    .rsplit('/')
+                    .next()
+                    .is_some_and(|n| n.starts_with('I'))
+        })
+        .map(|f| {
+            format!(
+                "global::{}.{}",
+                f.namespace,
+                f.path
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or("")
+                    .trim_end_matches(".cs")
+            )
+        })
+        .collect();
+
+    files.push(g.processors()?);
+    files.push(g.catalogue(&contracts)?);
+    files.push(g.wiring());
+
+    let index: Vec<(String, String)> = files
+        .iter()
+        .map(|f| (f.namespace.clone(), f.path.clone()))
+        .collect();
+    files.push(g.class_map(&index));
+
+    let problems = g.problems();
+
+    if !problems.is_empty() {
+        return Err(problems.join("\n"));
+    }
+
+    let mut rendered: Vec<(String, String)> = files.into_iter().map(cs::File::render).collect();
+    rendered.sort_by(|a, b| a.0.cmp(&b.0));
+
+    Ok(rendered
+        .into_iter()
+        .map(|(path, body)| json!({"path": path, "body": body}))
+        .collect())
 }
 
 fn main() {

@@ -76,23 +76,91 @@ fn valid_config() -> Value {
     json!({"namespace": "Hsimah.Entity", "typeNamespace": "Hsimah.Type"})
 }
 
+/// The names the golden trees use for their namespaces: what `tests/dotnet/materialize.py` compiles.
+fn golden_config(name: &str) -> Value {
+    let pascal: String = name
+        .split('-')
+        .map(|part| part[..1].to_uppercase() + &part[1..])
+        .collect();
+
+    json!({"namespace": format!("Golden.{pascal}"), "typeNamespace": format!("Golden.{pascal}.Declared")})
+}
+
 #[test]
-fn every_golden_request_decodes_and_generates_nothing_yet() {
+fn every_golden_request_generates_the_frozen_tree() {
+    let refresh = std::env::var_os("ELEPH_REFRESH").is_some();
+
     for name in FIXTURES {
-        let response = answer(&with_config(fixture(name), valid_config()));
+        let response = answer(&with_config(fixture(name), golden_config(name)));
+
+        assert_eq!(response["errors"], json!([]), "{name}");
+        assert_eq!(response["headerStyle"], "line-comment", "{name}");
+        assert_eq!(response["extensions"], json!(["cs"]), "{name}");
+
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/golden")
+            .join(name)
+            .join("expected");
+        let files = response["files"].as_array().expect("files");
+
+        if refresh {
+            let _ = std::fs::remove_dir_all(&root);
+
+            for file in files {
+                let path = root.join(file["path"].as_str().unwrap());
+
+                std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                std::fs::write(path, file["body"].as_str().unwrap()).unwrap();
+            }
+
+            continue;
+        }
+
+        let mut expected = Vec::new();
+        collect(&root, &root, &mut expected);
+        expected.sort();
+
+        let produced: Vec<String> = files
+            .iter()
+            .map(|f| f["path"].as_str().unwrap().to_string())
+            .collect();
 
         assert_eq!(
-            response,
-            json!({
-                "elephentity": 1,
-                "irVersion": "1.2",
-                "headerStyle": "line-comment",
-                "extensions": ["cs"],
-                "files": [],
-                "errors": []
-            }),
-            "{name}"
+            produced, expected,
+            "{name}: the set of files changed (ELEPH_REFRESH=1 cargo test to refresh)"
         );
+
+        for file in files {
+            let path = file["path"].as_str().unwrap();
+            let frozen = std::fs::read_to_string(root.join(path)).unwrap();
+
+            assert_eq!(
+                file["body"].as_str().unwrap(),
+                frozen,
+                "{name}/{path} changed (ELEPH_REFRESH=1 cargo test to refresh)"
+            );
+        }
+    }
+}
+
+fn collect(root: &std::path::Path, dir: &std::path::Path, into: &mut Vec<String>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+
+        if path.is_dir() {
+            collect(root, &path, into);
+        } else {
+            into.push(
+                path.strip_prefix(root)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+            );
+        }
     }
 }
 

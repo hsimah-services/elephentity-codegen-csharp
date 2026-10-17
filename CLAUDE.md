@@ -30,8 +30,8 @@ cargo test --locked
 - **`rust/ir.rs` is not edited here.** It is a byte-identical copy (SOURCE.md); `tests/ir_copy.rs` fails
   on drift. An IR change reaches every builder and merges together with the compiler and orchestrator.
 - **Names that cross a repository boundary** (the `Elephentity.Runtime` type names the emitters write)
-  are strings in `rust/runtime.rs` once it exists. Renaming a class in `elephentity-dotnet` fails
-  nothing here; regenerating the .NET example is what catches it.
+  are strings in `rust/runtime.rs`. Renaming a class in `elephentity-dotnet` fails nothing in `cargo test`;
+  the `generated` CI job (`tests/dotnet`) compiles every golden tree against the pinned runtime and catches it.
 - **Generated code uses no reflection** and nothing that stops Native AOT.
 
 ## Before you commit anything that crosses a repository boundary
