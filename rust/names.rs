@@ -156,6 +156,15 @@ pub fn literal(text: &str) -> String {
             '\n' => out.push_str("\\n"),
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
+            // The rest of what would end a line or print as nothing: written as escapes so the literal is always
+            // printable, and the compiler never sees a line terminator inside a string.
+            other if other.is_control() || matches!(other, '\u{2028}' | '\u{2029}') => {
+                let mut units = [0u16; 2];
+
+                for unit in other.encode_utf16(&mut units) {
+                    out.push_str(&format!("\\u{unit:04X}"));
+                }
+            }
             other => out.push(other),
         }
     }
@@ -249,6 +258,11 @@ mod tests {
     #[test]
     fn literals_escape_what_would_end_the_string() {
         assert_eq!(literal("a\"b\\c\n"), "\"a\\\"b\\\\c\\n\"");
+        assert_eq!(
+            literal("\u{85}\u{2028}\u{2029}"),
+            "\"\\u0085\\u2028\\u2029\""
+        );
+        assert_eq!(literal("\0\u{1}\u{7f}"), "\"\\u0000\\u0001\\u007F\"");
     }
 
     #[test]

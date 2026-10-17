@@ -67,7 +67,12 @@ impl Code {
 
     /// An XML documentation summary; a blank line in `text` starts a new paragraph.
     pub fn doc(&mut self, text: &str) -> &mut Self {
-        let escaped = escape_xml(text.trim());
+        // C# ends a line at more than \n: \r, U+0085, U+2028 and U+2029 do too, and text from a spec must not be able to
+        // start a line of code. Every terminator becomes a \n first, so each gets its own `///`.
+        let normalized = text
+            .replace("\r\n", "\n")
+            .replace(['\r', '\u{85}', '\u{2028}', '\u{2029}'], "\n");
+        let escaped = escape_xml(normalized.trim());
 
         self.line("/// <summary>");
 
@@ -135,5 +140,31 @@ impl File {
         body.push('\n');
 
         (self.path, body)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_csharp_line_terminator_in_a_description_starts_a_new_doc_line() {
+        for terminator in ["\n", "\r\n", "\r", "\u{85}", "\u{2028}", "\u{2029}"] {
+            let mut code = Code::new();
+            code.doc(&format!("Name.{terminator}public static class Evil {{}}"));
+            let text = code.finish();
+
+            for line in text.lines() {
+                assert!(
+                    line.starts_with("///"),
+                    "{terminator:?} let `{line}` out of the comment"
+                );
+            }
+
+            assert!(
+                !text.contains(['\r', '\u{85}', '\u{2028}', '\u{2029}']),
+                "{terminator:?}"
+            );
+        }
     }
 }
