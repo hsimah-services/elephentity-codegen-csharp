@@ -212,9 +212,10 @@ public sealed class ValidTests
         await host.Gateway.CreateAsync("Post", Post("live one", "published", slug: "b"), Token);
 
         var result = await host.Gateway.RunQueryAsync("Post", "published", new Dictionary<string, object?> { ["limit"] = 5L }, Token);
-        var posts = await Assert.IsAssignableFrom<IEntityQuery<Golden.Valid.Post>>(result).AllAsync(Token);
+        // The gateway's untyped surface: a collection comes back as rows of object, as `All` does, so GraphQL can page it.
+        var posts = await Assert.IsAssignableFrom<IEntityQuery<object>>(result).AllAsync(Token);
 
-        Assert.Equal(["live one"], posts.Select(post => post.Title));
+        Assert.Equal(["live one"], posts.Cast<Golden.Valid.Post>().Select(post => post.Title));
     }
 
     [Fact]

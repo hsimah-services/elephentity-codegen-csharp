@@ -198,7 +198,7 @@ public sealed class Catalogue : global::Elephentity.Runtime.Catalogue.IEntityCat
             {
                 var decoded = Service<PostInput>().DecodeQuery(query, args);
                 var finder = Service<PostFinder>();
-                return new global::System.Threading.Tasks.ValueTask<object?>(finder.Published((long?)decoded["limit"]));
+                return new global::System.Threading.Tasks.ValueTask<object?>(global::Elephentity.Runtime.Query.EntityQueries.AsObjects(finder.Published((long?)decoded["limit"])));
             }
             default:
                 throw new global::System.ArgumentException($"{entity} declares no query named '{query}'.", nameof(query));
