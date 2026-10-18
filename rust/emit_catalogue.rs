@@ -362,7 +362,7 @@ impl Gen<'_> {
                     ));
                 } else {
                     code.line(format!(
-                        "return new {VALUE_TASK}<object?>(finder.{}({}));",
+                        "return new {VALUE_TASK}<object?>({ENTITY_QUERIES}.AsObjects(finder.{}({})));",
                         pascal(name),
                         arguments.join(", ")
                     ));
