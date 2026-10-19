@@ -20,8 +20,8 @@ eleph install --check    # fails if it is missing, another version, or modified
 ```
 
 From this repository: `cargo install --path . --locked`, or `cargo build --release --locked` and use
-`bin/eleph-gen-csharp`, which picks `target/release` then `target/debug`. With Composer, `composer
-require --dev elephentity/codegen-csharp` provides `vendor/bin/eleph-gen-csharp` (build it with cargo).
+`bin/eleph-gen-csharp`, which picks `target/release` then `target/debug`. There is no Composer
+package: the .NET path needs no PHP, so releases are the only distribution.
 
 ## Configuring it
 
